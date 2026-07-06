@@ -1,0 +1,16 @@
+[theme]
+# The main background color for the app
+backgroundColor = "#0E1117"
+
+# The background color for the sidebar
+secondaryBackgroundColor = "#262730"
+
+# The text color
+textColor = "#FAFAFA"
+
+# The accent color used for buttons, loading bars, and widgets
+primaryColor = "#4A90E2"
+
+# Forces the app into dark mode so it doesn't try to guess the user's system settings
+base = "dark"
+
