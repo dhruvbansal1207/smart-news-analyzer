@@ -13,11 +13,11 @@ st.sidebar.divider()
 
 # --- TEAM CREDITS ---
 st.sidebar.caption("👨‍💻 **Developed by:**")
-st.sidebar.caption("• Frontend: Dhruv")
-st.sidebar.caption("• Search Engine: Aayush")
-st.sidebar.caption("• Data & API: Lohitaksha")
-st.sidebar.caption("• Credibility ML: Akshay")
-st.sidebar.caption("• Summarizer NLP: Shiva")
+st.sidebar.caption("• Frontend: Dhruv Bansal")
+st.sidebar.caption("• Search Engine: Aayush Sharma")
+st.sidebar.caption("• Data & API: Lohitaksha Aggarwal")
+st.sidebar.caption("• Credibility ML: Akshay Shukla")
+st.sidebar.caption("• Summarizer NLP: Shiva Sarraf")
 
 # --- HEADER ---
 st.title("📰 Smart News Summarizer & Credibility Analyzer")
