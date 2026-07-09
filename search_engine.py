@@ -6,7 +6,7 @@ from summarizer import get_ai_summary
 
 # --- PERFORMANCE UPGRADE ---
 # This decorator forces Streamlit to memorize this math so it doesn't freeze your app!
-@st.cache_data
+@st.cache_resource
 def load_and_vectorize_data(file_path="mini_dataset.json"):
     try:
         # 1. Load the JSON dataset (lines=True is required for this specific dataset format)
