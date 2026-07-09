@@ -1,6 +1,7 @@
 import streamlit as st
-import time # We import time to fake a delay for the loading animation
-from mock_backend import get_search_results
+import time
+from data_api import get_live_news 
+from search_engine import get_offline_search_results # NEW: Import the offline engine
 
 st.set_page_config(page_title="Smart News", layout="wide")
 
@@ -13,53 +14,57 @@ st.sidebar.divider()
 
 # --- TEAM CREDITS ---
 st.sidebar.caption("👨‍💻 **Developed by:**")
-st.sidebar.caption("• Frontend: Dhruv Bansal")
-st.sidebar.caption("• Search Engine: Aayush Sharma")
-st.sidebar.caption("• Data & API: Lohitaksha Aggarwal")
-st.sidebar.caption("• Credibility ML: Akshay Shukla")
-st.sidebar.caption("• Summarizer NLP: Shiva Sarraf")
+st.sidebar.caption("• Frontend & API: Dhruv")
+st.sidebar.caption("• Search Engine: Aayush")
+st.sidebar.caption("• Data pipeline: Lohitaksha")
+st.sidebar.caption("• Credibility ML: Akshay")
+st.sidebar.caption("• Summarizer NLP: Shiva")
 
 # --- HEADER ---
 st.title("📰 Smart News Summarizer & Credibility Analyzer")
-st.write("Search for news and get AI-summarized, credibility-checked results.")
+st.write("Search for live global news using your custom API pipeline.")
 
 # --- MAIN SEARCH BAR ---
-search_query = st.text_input("Enter a news topic (e.g., 'AI', 'Markets'):")
+search_query = st.text_input("Enter a news topic (e.g., 'SpaceX', 'Apple'):")
 
 if st.button("Search"):
     if search_query:
-        st.write(f"Searching for: **{search_query}** using {data_source}...")
+        st.write(f"Searching the web for: **{search_query}**...")
         st.divider() 
         
-        # --- LOADING ANIMATION ---
-        with st.spinner('Scraping news, analyzing credibility, and generating AI summaries...'):
-            # We add a fake 2-second delay to test the spinner
-            time.sleep(2) 
+     # --- LOADING ANIMATION & DATA FETCHING ---
+        with st.spinner('Fetching and analyzing articles...'):
             
-            # This is where your teammates' real functions will go
-            results = get_search_results(search_query)
+            if data_source == "Offline (30-day Dataset)":
+                # Use the Scikit-Learn search engine on the CSV
+                results = get_offline_search_results(search_query)
+            else:
+                # Use the NewsAPI internet pipeline
+                api_key = st.secrets["NEWS_API_KEY"]
+                results = get_live_news(search_query, api_key)
         
         # --- DISPLAY RESULTS ---
-        for article in results:
-            if selected_category == "All" or article["category"] == selected_category:
-                
-                col1, col2 = st.columns([3, 1]) 
-                with col1:
-                    st.subheader(article["title"])
-                    st.caption(f"Source: {article['source']} | Published: {article['time']} | Category: {article['category']}")
-                    with st.expander("Read AI Summary"):
-                        st.write(article["summary"])
-                
-                with col2:
-                    score = article["credibility"]
-                    st.metric(label="Credibility", value=f"{score}%")
-                    if score >= 80:
-                        st.success("High Credibility")
-                    elif score >= 60:
-                        st.warning("Medium Credibility")
-                    else:
-                        st.error("Low Credibility")
-                
-                st.divider() 
+        if not results:
+            st.error("No news found for this topic. Try another search term.")
+        else:
+            for article in results:
+                if selected_category == "All" or article["category"] == selected_category:
+                    
+                    col1, col2 = st.columns([3, 1]) 
+                    with col1:
+                        st.subheader(article["title"])
+                        st.caption(f"Source: {article['source']} | Published: {article['time']}")
+                        with st.expander("Read Text & Summary Status"):
+                            st.write("**Raw Text Fetched:**")
+                            st.write(article["full_text"])
+                            st.divider()
+                            st.write(f"**Summary Engine:** {article['summary']}")
+                    
+                    with col2:
+                        score = article["credibility"]
+                        st.metric(label="Credibility Score", value=f"{score}%")
+                        st.info("Pending ML Model")
+                    
+                    st.divider() 
     else:
         st.warning("Please enter a search term first.")
