@@ -7,15 +7,15 @@ from summarizer import get_ai_summary
 # --- PERFORMANCE UPGRADE ---
 # This decorator forces Streamlit to memorize this math so it doesn't freeze your app!
 @st.cache_resource
-def load_and_vectorize_data(file_path="mini_dataset.json"):
+@st.cache_resource
+def load_and_vectorize_data(file_path="News_Category_Dataset_v3.json"):
     try:
-        # 1. Load the JSON dataset (lines=True is required for this specific dataset format)
+        # 1. Load the massive JSON dataset
         df = pd.read_json(file_path, lines=True)
         
-        # 2. Prevent RAM crashes by taking the most recent 10,000 articles
-        df = df.head(10000)
+        # We removed the df.head() slicer! We are loading all 50k rows.
         
-        # 3. Rename the JSON keys to perfectly match our Data Contract
+        # 2. Rename the JSON keys to perfectly match our Data Contract
         df = df.rename(columns={
             "headline": "title",
             "authors": "source",
@@ -23,11 +23,16 @@ def load_and_vectorize_data(file_path="mini_dataset.json"):
             "short_description": "full_text"
         })
         
-        # Clean up empty sources
-        df['source'] = df['source'].replace('', 'Unknown Source')
+        # 3. Data Sanitizer
+        df['full_text'] = df['full_text'].fillna("").astype(str)
+        df['title'] = df['title'].fillna("No Title").astype(str)
+        df['source'] = df['source'].replace('', 'Unknown Source').fillna('Unknown Source')
+        df['category'] = df['category'].fillna("General").astype(str)
         
-        # 4. Do the heavy TF-IDF math ONCE
-        vectorizer = TfidfVectorizer(stop_words='english')
+        df['full_text'] = df.apply(lambda x: x['title'] if len(x['full_text'].strip()) < 5 else x['full_text'], axis=1)
+
+        # 4. RAM Optimization: Cap the matrix to the 10,000 most important words
+        vectorizer = TfidfVectorizer(stop_words='english', max_features=10000)
         tfidf_matrix = vectorizer.fit_transform(df['full_text'])
         
         return df, vectorizer, tfidf_matrix
@@ -37,7 +42,7 @@ def load_and_vectorize_data(file_path="mini_dataset.json"):
         return None, None, None
 
 # --- THE SEARCH FUNCTION ---
-def get_offline_search_results(query, file_path="mini_dataset.json"):
+def get_offline_search_results(query, file_path="News_Category_Dataset_v3.json"):
     
     # Grab the pre-calculated math from memory
     df, vectorizer, tfidf_matrix = load_and_vectorize_data(file_path)
