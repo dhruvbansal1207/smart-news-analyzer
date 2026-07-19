@@ -3,6 +3,7 @@ import streamlit as st
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 from summarizer import get_ai_summary
+from credibility_model import get_credibility_score
 
 # --- RESOURCE CACHING ---
 # We use @st.cache_resource because we are storing a complex ML model (TfidfVectorizer) and a sparse matrix in RAM
@@ -80,7 +81,10 @@ def get_offline_search_results(query, file_path="News_Category_Dataset_v3.json")
             "time": str(row['time'])[:10],
             "full_text": raw_text,
             "summary": ai_summary, 
-            "credibility": 50, # Placeholder until we build the ML Credibility Model
+            
+            # --- THE NEW ML HOOK ---
+            "credibility": get_credibility_score(row['title']), 
+            
             "category": row['category']
         })
         
