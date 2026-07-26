@@ -2,6 +2,6 @@ streamlit
 pandas
 scikit-learn
 nltk
-requests
-newsapi-python
+joblib
 sumy
+newsapi-python

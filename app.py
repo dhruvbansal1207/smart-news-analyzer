@@ -1,7 +1,6 @@
 import streamlit as st
 import time
-from data_api import get_live_news 
-from search_engine import get_offline_search_results # NEW: Import the offline engine
+from data_manager import get_news # The single unified bridge
 
 st.set_page_config(page_title="Smart News", layout="wide")
 
@@ -32,23 +31,22 @@ if st.button("Search"):
         st.write(f"Searching the web for: **{search_query}**...")
         st.divider() 
         
-     # --- LOADING ANIMATION & DATA FETCHING ---
+        # --- LOADING ANIMATION & DATA FETCHING ---
         with st.spinner('Fetching and analyzing articles...'):
-            
             if data_source == "Offline (30-day Dataset)":
-                # Use the Scikit-Learn search engine on the CSV
-                results = get_offline_search_results(search_query)
+                # Route through the unified manager (Offline Mode)
+                results = get_news(search_query, mode="offline")
             else:
-                # Use the NewsAPI internet pipeline
-                api_key = st.secrets["NEWS_API_KEY"]
-                results = get_live_news(search_query, api_key)
+                # Route through the unified manager (Online Mode)
+                results = get_news(search_query, mode="online")
         
         # --- DISPLAY RESULTS ---
         if not results:
             st.error("No news found for this topic. Try another search term.")
         else:
             for article in results:
-                if selected_category == "All" or article["category"] == selected_category:
+                # Use .get() safely in case category is missing from live news
+                if selected_category == "All" or article.get("category", "All") == selected_category:
                     
                     col1, col2 = st.columns([3, 1]) 
                     with col1:
@@ -63,7 +61,7 @@ if st.button("Search"):
                     with col2:
                         score = article["credibility"]
                         st.metric(label="Credibility Score", value=f"{score}%")
-                        st.info("Pending ML Model")
+                        # The "Pending ML Model" text has been removed!
                     
                     st.divider() 
     else:
