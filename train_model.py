@@ -1,47 +1,47 @@
-import pandas as pd
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.linear_model import LogisticRegression
-import joblib
-import os
+import traceback
 
-print("Loading Fake and True news datasets...")
-# Load the data from your data folder
+print("--- STARTING TRAINING SCRIPT ---")
+
 try:
-    fake_df = pd.read_csv("data/Fake.csv")
-    true_df = pd.read_csv("data/True.csv")
+    print("1. Importing libraries...")
+    import pandas as pd
+    import joblib
+    from sklearn.model_selection import train_test_split
+    from sklearn.feature_extraction.text import TfidfVectorizer
+    from sklearn.naive_bayes import MultinomialNB
+    from preprocess import preprocess_text
+    
+    print("2. Loading news.csv...")
+    df = pd.read_csv("news.csv")
+    df = df.dropna(subset=['text'])
+    
+    print("3. Preprocessing text (This may take a minute...)")
+    # Adding a safeguard to drop completely empty strings after cleaning
+    df["text"] = df["text"].astype(str).apply(preprocess_text)
+    df = df[df["text"].str.strip() != ""] 
+    
+    print("4. Splitting data & Vectorizing...")
+    X = df["text"]
+    y = df["label"]
+    
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.20, random_state=42, stratify=y)
+    
+    vectorizer = TfidfVectorizer(max_features=5000, ngram_range=(1,2), stop_words="english")
+    X_train_vec = vectorizer.fit_transform(X_train)
+    
+    print("5. Training the Naive Bayes Model...")
+    model = MultinomialNB()
+    model.fit(X_train_vec, y_train)
+    
+    print("6. Saving .joblib files to root directory...")
+    joblib.dump(model, "fake_news_model.joblib")
+    joblib.dump(vectorizer, "vectorizer.joblib")
+    
+    print("✅ SUCCESS! Models generated.")
+
 except Exception as e:
-    print(f"Error loading CSVs. Make sure Fake.csv and True.csv are in the 'data/' folder. Details: {e}")
-    exit()
-
-# Add labels: 0 for Fake, 1 for Real
-fake_df['label'] = 0
-true_df['label'] = 1
-
-# Combine them into one massive dataset and shuffle it
-print("Combining and shuffling data...")
-df = pd.concat([fake_df, true_df]).sample(frac=1, random_state=42).reset_index(drop=True)
-
-# We will train the model to detect fake news based on the 'title' column
-# Drop any blank titles to prevent crashes
-df = df.dropna(subset=['title'])
-X = df['title'] 
-y = df['label']
-
-print("Vectorizing text (converting words to math)...")
-# Limit to top 5000 words so it runs fast and keeps the app lightweight
-vectorizer = TfidfVectorizer(stop_words='english', max_features=5000)
-X_vectorized = vectorizer.fit_transform(X)
-
-print("Training the Machine Learning Model...")
-model = LogisticRegression()
-model.fit(X_vectorized, y)
-
-print("Saving AI brain to disk...")
-# Ensure models directory exists
-os.makedirs("models", exist_ok=True)
-
-# Save the trained components so credibility_model.py can use them
-joblib.dump(model, 'models/credibility_model.joblib')
-joblib.dump(vectorizer, 'models/credibility_vectorizer.joblib')
-
-print("✅ Credibility Model trained and saved successfully!")
+    print("\n❌ CRASH DETECTED!")
+    print("Here is the exact error:")
+    print("-" * 40)
+    traceback.print_exc()
+    print("-" * 40)

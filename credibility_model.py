@@ -1,69 +1,135 @@
-import pandas as pd
-import re
-from sklearn.ensemble import RandomForestClassifier
+"""
+credibility_model.py
+Author : Akshay Shukla
+Modified for: Domain Calibration & Streamlit Integration
+"""
 
-def train_credibility_model():
-    # 1. SYNTHETIC TRAINING DATA
-    # We train the model on examples of credible news (1) vs. clickbait/sensationalism (0)
-    data = {
-        "headline": [
-            "Federal Reserve Increases Interest Rates by 0.5%",
-            "You Won't Believe What Happened Next!!!",
-            "New Study Shows Water is Good For You",
-            "SHOCKING TRUTH About Your Diet!!!",
-            "Apple Announces New iPhone 15 Specifications",
-            "Top 10 SECRETS They Don't Want You To Know",
-            "Global Markets Fall Amidst Inflation Fears",
-            "Is The World Ending?! Watch This Video Now!",
-            "Local Mayor Re-elected for Second Term",
-            "15 Ways to Get Rich QUICK! #3 Will Shock You!"
-        ],
-        "label": [1, 0, 1, 0, 1, 0, 1, 0, 1, 0] 
-    }
-    df = pd.DataFrame(data)
+import os
+import joblib
+import numpy as np
 
-    # 2. FEATURE ENGINEERING
-    # Computers can't read clickbait, so we convert linguistic red flags into numbers
-    def extract_features(text):
+from preprocess import preprocess_text
+from similarity import SimilarityChecker
+
+
+class CredibilityAnalyzer:
+
+    def __init__(self, model_path="fake_news_model.joblib", vectorizer_path="vectorizer.joblib", trusted_news_path="trusted_news.csv"):
+        self.model = joblib.load(model_path)
+        self.vectorizer = joblib.load(vectorizer_path)
+        self.similarity_checker = SimilarityChecker(trusted_news_path=trusted_news_path)
+
+    def analyze(self, article: str) -> dict:
+        if not article or not isinstance(article, str):
+            return {
+                "prediction": "Unknown",
+                "confidence": 0.0,
+                "similarity_score": 0.0,
+                "credibility_score": 50.0,
+                "credibility_level": "Unverified",
+                "matched_article": ""
+            }
+
+        # 1. Preprocess
+        cleaned_article = preprocess_text(article)
+        if not cleaned_article.strip():
+            return {
+                "prediction": "Unknown",
+                "confidence": 0.0,
+                "similarity_score": 0.0,
+                "credibility_score": 50.0,
+                "credibility_level": "Unverified",
+                "matched_article": ""
+            }
+
+        # 2. TF-IDF Vector & Out-of-Vocabulary Check
+        vector = self.vectorizer.transform([cleaned_article])
+        non_zero_terms = vector.nnz  # Count how many words matched the vocabulary
+
+        # 3. Naive Bayes Probabilities
+        probabilities = self.model.predict_proba(vector)[0]
+        classes = list(self.model.classes_)
+        real_index = classes.index("Real") if "Real" in classes else 1
+        raw_real_prob = float(probabilities[real_index] * 100)
+
+        # 4. Domain & Vocabulary Calibration
+        # If the headline contains few training vocabulary terms, calibrate toward neutral-high
+        if non_zero_terms < 3:
+            calibrated_ml = 65.0 + (raw_real_prob * 0.25)
+        else:
+            calibrated_ml = raw_real_prob
+
+        # 5. Similarity Cross-Referencing
+        similarity_result = self.similarity_checker.calculate_similarity(article)
+        similarity_score = float(similarity_result.get("similarity_score", 0.0))
+        matched_article = similarity_result.get("matched_article", "")
+
+        # 6. Composite Score Calculation
+        # Base confidence from ML (85%) + bonus from verified corpus match (15%)
+        final_score = (0.85 * calibrated_ml) + (0.15 * similarity_score)
+        
+        # Keep score strictly bounded between 15% and 98%
+        final_score = round(max(15.0, min(98.0, final_score)), 2)
+        confidence = round(calibrated_ml, 2)
+
+        # 7. Risk Categorization
+        if final_score >= 75:
+            risk = "Highly Credible"
+            prediction = "Real"
+        elif final_score >= 50:
+            risk = "Moderately Credible"
+            prediction = "Likely Real"
+        elif final_score >= 35:
+            risk = "Low Credibility"
+            prediction = "Unverified / Sensational"
+        else:
+            risk = "Highly Suspicious"
+            prediction = "Fake"
+
         return {
-            "length": len(text),
-            "exclamations": text.count("!"),
-            "questions": text.count("?"),
-            "uppercase_words": sum(1 for word in str(text).split() if word.isupper() and len(word) > 1),
-            "clickbait_phrases": 1 if re.search(r'(shocking|unbelievable|secrets|you won\'t believe|quick)', str(text).lower()) else 0
+            "prediction": prediction,
+            "confidence": confidence,
+            "similarity_score": round(similarity_score, 2),
+            "credibility_score": final_score,
+            "credibility_level": risk,
+            "matched_article": matched_article
         }
 
-    # Extract math features for our training data
-    features_df = pd.DataFrame([extract_features(text) for text in df['headline']])
 
-    # 3. TRAIN THE RANDOM FOREST ALGORITHM
-    model = RandomForestClassifier(random_state=42, n_estimators=50)
-    model.fit(features_df, df['label'])
-    
-    return model
+# -----------------------------------------------------
+# Global Bridge for Streamlit UI Integration
+# -----------------------------------------------------
 
-# Train the model once when the file loads
-rf_model = train_credibility_model()
+_analyzer_instance = None
 
-# 4. THE INFERENCE FUNCTION (This is what our app will call)
-def get_credibility_score(headline):
-    try:
-        # Extract features from the newly searched headline
-        def extract_features(text):
-            return {
-                "length": len(text),
-                "exclamations": text.count("!"),
-                "questions": text.count("?"),
-                "uppercase_words": sum(1 for word in str(text).split() if word.isupper() and len(word) > 1),
-                "clickbait_phrases": 1 if re.search(r'(shocking|unbelievable|secrets|you won\'t believe|quick)', str(text).lower()) else 0
-            }
-            
-        features = pd.DataFrame([extract_features(headline)])
-        
-        # Predict probability (returns an array like [0.2, 0.8] -> 80% credible)
-        probability = rf_model.predict_proba(features)[0][1]
-        
-        # Convert to a 0-100 score format
-        return int(probability * 100)
-    except Exception as e:
-        return 50 # Safe fallback if the model encounters weird text
+def get_analyzer():
+    global _analyzer_instance
+    if _analyzer_instance is None:
+        try:
+            _analyzer_instance = CredibilityAnalyzer()
+        except Exception as e:
+            print(f"Analyzer Init Error: {e}")
+            return None
+    return _analyzer_instance
+
+def get_credibility_score(text: str) -> int:
+    """Returns integer credibility percentage (0-100) for UI display."""
+    analyzer = get_analyzer()
+    if analyzer:
+        res = analyzer.analyze(text)
+        return int(round(res.get("credibility_score", 50)))
+    return 50
+
+def get_full_analysis(text: str) -> dict:
+    """Returns the full metrics dictionary."""
+    analyzer = get_analyzer()
+    if analyzer:
+        return analyzer.analyze(text)
+    return {
+        "prediction": "Unknown",
+        "confidence": 50.0,
+        "similarity_score": 0.0,
+        "credibility_score": 50.0,
+        "credibility_level": "Unverified",
+        "matched_article": ""
+    }
